@@ -46,6 +46,7 @@ document_store = {}
 class QuestionRequest(BaseModel):
     question: str
     session_id: str
+    include_reasoning: bool = False
 
 class DocumentProcessResponse(BaseModel):
     session_id: str
@@ -54,6 +55,7 @@ class DocumentProcessResponse(BaseModel):
 
 class QuestionResponse(BaseModel):
     answer: str
+    thinking: Optional[str] = None
 
 def is_ollama_running():
     """Check if Ollama API is running"""
@@ -260,8 +262,35 @@ async def ask_question(request: QuestionRequest):
                 answer = str(response)
         else:
             answer = str(response)
+        
+        # Attempt to separate reasoning and final answer if requested
+        if request.include_reasoning:
+            # Simple heuristic to separate reasoning from answer
+            # This is a basic implementation - in a real app you'd want something more sophisticated
+            result = {}
             
-        return {"answer": answer}
+            # If response contains "Final Answer:" or similar delimiter
+            if isinstance(answer, str) and "\n\nFinal Answer:" in answer:
+                parts = answer.split("\n\nFinal Answer:")
+                result = {
+                    "thinking": parts[0].strip(),
+                    "answer": "Final Answer:" + parts[1].strip()
+                }
+            elif isinstance(answer, str) and answer.count("\n\n") > 0:
+                # If multiple paragraphs, assume last paragraph is the answer
+                paragraphs = answer.split("\n\n")
+                result = {
+                    "thinking": "\n\n".join(paragraphs[:-1]),
+                    "answer": paragraphs[-1]
+                }
+            else:
+                # No clear separation, return everything as the answer
+                result = {"answer": answer}
+            
+            return result
+        else:
+            # Just return the answer
+            return {"answer": answer}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error processing question: {str(e)}")
 

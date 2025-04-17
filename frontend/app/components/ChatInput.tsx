@@ -1,61 +1,108 @@
-import React, { useState } from 'react';
+import React, { useState, KeyboardEvent, useRef, useEffect } from 'react';
 
 interface ChatInputProps {
   onSendMessage: (message: string) => void;
-  isProcessing: boolean;
-  disabled: boolean;
+  disabled?: boolean;
+  placeholder?: string;
 }
 
 const ChatInput: React.FC<ChatInputProps> = ({ 
-  onSendMessage, 
-  isProcessing, 
-  disabled 
+  onSendMessage,
+  disabled = false,
+  placeholder = "Ask a question about your document..."
 }) => {
-  const [input, setInput] = useState('');
+  const [message, setMessage] = useState('');
+  const [isFocused, setIsFocused] = useState(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (input.trim() && !isProcessing && !disabled) {
-      onSendMessage(input);
-      setInput('');
+  // Auto-resize the textarea based on content
+  useEffect(() => {
+    const textarea = textareaRef.current;
+    if (textarea) {
+      textarea.style.height = 'auto';
+      const newHeight = Math.min(textarea.scrollHeight, 150);
+      textarea.style.height = `${newHeight}px`;
+    }
+  }, [message]);
+
+  const handleSubmit = () => {
+    if (message.trim() && !disabled) {
+      onSendMessage(message.trim());
+      setMessage('');
+      
+      // Reset textarea height
+      if (textareaRef.current) {
+        textareaRef.current.style.height = 'auto';
+      }
+    }
+  };
+
+  const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSubmit();
     }
   };
 
   return (
-    <form onSubmit={handleSubmit} className="relative p-2 border-t">
-      <div className="flex items-center border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800">
+    <div className="border-t border-gray-100 bg-white p-4 rounded-b-lg shadow-sm transition-all">
+      <div className={`relative rounded-xl ${isFocused ? 'ring-2 ring-indigo-400 ring-opacity-50' : 'ring-1 ring-gray-200'} transition-all duration-200`}>
         <textarea
-          className="flex-grow px-4 py-2 bg-transparent outline-none resize-none"
-          placeholder="Ask a question about your document..."
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault();
-              handleSubmit(e);
-            }
-          }}
+          ref={textareaRef}
+          className={`w-full px-4 py-3 pr-12 resize-none rounded-xl focus:outline-none transition-colors duration-200 ${
+            disabled 
+              ? 'bg-gray-50 text-gray-500 cursor-not-allowed' 
+              : 'bg-white text-gray-800'
+          }`}
           rows={1}
-          disabled={disabled || isProcessing}
+          placeholder={placeholder}
+          value={message}
+          onChange={(e) => setMessage(e.target.value)}
+          onKeyDown={handleKeyDown}
+          onFocus={() => setIsFocused(true)}
+          onBlur={() => setIsFocused(false)}
+          disabled={disabled}
         />
         <button
-          type="submit"
-          className="p-2 mx-2 rounded-md bg-indigo-600 text-white disabled:opacity-50 disabled:cursor-not-allowed"
-          disabled={!input.trim() || isProcessing || disabled}
+          className={`absolute right-2 bottom-2 p-2 rounded-full text-white transition-all duration-200 transform ${
+            message.trim() && !disabled
+              ? 'bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 hover:shadow-md hover:scale-105'
+              : 'bg-gray-300 cursor-not-allowed opacity-70'
+          }`}
+          onClick={handleSubmit}
+          disabled={!message.trim() || disabled}
+          aria-label="Send message"
         >
-          {isProcessing ? (
-            <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-            </svg>
-          ) : (
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-8.707l-3-3a1 1 0 00-1.414 0l-3 3a1 1 0 001.414 1.414L9 9.414V13a1 1 0 102 0V9.414l1.293 1.293a1 1 0 001.414-1.414z" clipRule="evenodd" />
-            </svg>
-          )}
+          <svg
+            className="w-5 h-5"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"
+            />
+          </svg>
         </button>
       </div>
-    </form>
+      <div className="flex items-center justify-between mt-2">
+        <p className="text-xs text-gray-500">
+          Press <kbd className="px-1 py-0.5 bg-gray-100 rounded text-xs">Enter</kbd> to send. Use <kbd className="px-1 py-0.5 bg-gray-100 rounded text-xs">Shift+Enter</kbd> for new line.
+        </p>
+        {disabled && (
+          <span className="text-xs bg-amber-50 text-amber-600 px-2 py-1 rounded-md flex items-center">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            {disabled ? "Document processing required" : ""}
+          </span>
+        )}
+      </div>
+    </div>
   );
 };
 
